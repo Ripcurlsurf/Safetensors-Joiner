@@ -1,4 +1,4 @@
-# Safetensors Joiner
+# Safetensor Joiner
 
 > A lightweight, client-side web utility to concatenate sharded `.safetensors` model weights into a single, unified `.safetensors` file[cite: 2]. Completely offline, zero dependencies, and runs directly inside your browser[cite: 2].
 
