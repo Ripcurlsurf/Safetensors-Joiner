@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safetensors Joiner</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#15171a; --muted:#5d6570; --line:#e2e5ea;
+  --accent:#3b5bdb; --accent-ink:#ffffff; --accent-soft:#edf1ff;
+  --ok:#2b8a3e; --warn:#a85d00; --err:#c92a2a; --info:#1864ab;
+  --ok-bg:#ebfbee; --warn-bg:#fff4e6; --err-bg:#fff5f5; --info-bg:#e7f5ff;
+  --chip:#eef1f5; --drop:#f3f5ff;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --panel:#171a20; --ink:#e7e9ee; --muted:#9aa3ae; --line:#2a2f38;
+    --accent:#7c93ff; --accent-ink:#0f1115; --accent-soft:#1e2540;
+    --ok:#69db7c; --warn:#ffc078; --err:#ff8787; --info:#74c0fc;
+    --ok-bg:#132a19; --warn-bg:#2d2112; --err-bg:#2e1518; --info-bg:#11263a;
+    --chip:#222731; --drop:#1a1f2e;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --panel:#171a20; --ink:#e7e9ee; --muted:#9aa3ae; --line:#2a2f38;
+  --accent:#7c93ff; --accent-ink:#0f1115; --accent-soft:#1e2540;
+  --ok:#69db7c; --warn:#ffc078; --err:#ff8787; --info:#74c0fc;
+  --ok-bg:#132a19; --warn-bg:#2d2112; --err-bg:#2e1518; --info-bg:#11263a;
+  --chip:#222731; --drop:#1a1f2e;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 64px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:20px}
+header.top h1{margin:0;font-size:26px;letter-spacing:-.02em}
+header.top p{margin:4px 0 0;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--ok-bg);color:var(--ok);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;white-space:nowrap}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:10px}
+.step{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.mono{font-family:var(--mono);font-size:13px}
+button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;padding:10px 20px;font-size:15px}
+button.icon{padding:3px 8px;font-size:13px}
+button.danger:hover:not(:disabled){border-color:var(--err);color:var(--err)}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);background:var(--drop);padding:28px 16px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{display:block;font-size:16px;margin-bottom:4px}
+.drop .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.notices{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.notice{font-size:13px;padding:7px 10px;border-radius:8px;background:var(--info-bg);color:var(--info)}
+.notice.warn{background:var(--warn-bg);color:var(--warn)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--chip)}
+tr:last-child td{border-bottom:0}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.name{word-break:break-all}
+td.acts{white-space:nowrap;text-align:right}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--chip);color:var(--muted);white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.err{background:var(--err-bg);color:var(--err)}
+.badge.info{background:var(--info-bg);color:var(--info)}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:14px}
+.issues{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.issues li{padding:8px 12px;border-radius:8px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.issues li .ic{font-weight:700;flex:none;width:16px;text-align:center}
+.issues li.error{background:var(--err-bg);color:var(--err)}
+.issues li.warn{background:var(--warn-bg);color:var(--warn)}
+.issues li.info{background:var(--info-bg);color:var(--info)}
+.issues li.ok{background:var(--ok-bg);color:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+.stat{background:var(--chip);border-radius:10px;padding:10px 12px}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+@media (max-width:680px){.grid{grid-template-columns:1fr}}
+.field label{display:block;font-weight:600;font-size:13.5px;margin-bottom:5px}
+.field .hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.field.full{grid-column:1/-1}
+input[type=text],select,textarea{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{font-family:var(--mono);font-size:12.5px;min-height:110px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.fielderr{color:var(--err);font-size:12.5px;margin-top:4px}
+details>summary{cursor:pointer;font-weight:600;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"▸ ";color:var(--muted)}
+details[open]>summary::before{content:"▾ "}
+.tensorbar{display:flex;gap:8px;align-items:center;margin:12px 0 10px;flex-wrap:wrap}
+.tensorbar input{flex:1;min-width:200px}
+.join{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.method{font-size:13.5px;color:var(--muted);flex:1;min-width:240px}
+.progress{margin-top:16px;display:none}
+.progress.show{display:block}
+.bar{height:10px;border-radius:999px;background:var(--chip);overflow:hidden}
+.bar>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+.ptext{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.result{margin-top:14px}
+footer{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Safetensors Joiner</h1>
+      <p>Combine sharded <span class="mono">.safetensors</span> files (e.g. <span class="mono">model-00001-of-00004</span>) into one file.</p>
+    </div>
+    <span class="pill">● Runs locally — nothing is uploaded</span>
+  </header>
+
+  <section class="card">
+    <h2><span class="step">1</span>Add shards</h2>
+    <div id="drop" class="drop">
+      <strong>Drop .safetensors shards or a whole model folder here</strong>
+      <span class="muted small">Only the headers are read now, so even huge files load instantly. Add <span class="mono">model.safetensors.index.json</span> too and every tensor will be cross-checked.</span>
+      <div class="actions">
+        <button id="pickFiles" type="button">Choose files…</button>
+        <button id="pickFolder" type="button">Choose folder…</button>
+      </div>
+      <input id="fileInput" class="sr" type="file" multiple accept=".safetensors,.json">
+      <input id="folderInput" class="sr" type="file" webkitdirectory multiple>
+    </div>
+    <div id="notices" class="notices"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span>Files <span id="fileCount" class="badge"></span></h2>
+    <div class="toolbar">
+      <button id="sortBtn" type="button">Sort by shard number</button>
+      <button id="clearBtn" type="button" class="danger">Clear all</button>
+      <span id="indexInfo" class="small muted" style="align-self:center"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>File</th><th>Shard</th><th style="text-align:right">Size</th><th style="text-align:right">Tensors</th><th>Status</th><th></th></tr></thead>
+        <tbody id="fileRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">3</span>Checks</h2>
+    <ul id="issues" class="issues"></ul>
+    <div id="stats" class="stats"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">4</span>Options</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="outName">Output file name</label>
+        <input id="outName" type="text" value="merged.safetensors" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="dupMode">If the same tensor name appears twice</label>
+        <select id="dupMode">
+          <option value="error">Stop and tell me (safest)</option>
+          <option value="first">Keep the first one</option>
+          <option value="last">Keep the last one</option>
+          <option value="rename">Keep all, rename extras (name__2, …)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="order">Tensor order in the output</label>
+        <select id="order">
+          <option value="aligned">Alignment-safe (recommended)</option>
+          <option value="source">Same as source files</option>
+        </select>
+        <div class="hint">Alignment-safe matches how the official safetensors library writes files, so every tensor starts on a boundary its data type expects.</div>
+      </div>
+      <div class="field">
+        <label for="exclude">Leave out tensors matching (optional)</label>
+        <input id="exclude" type="text" placeholder="e.g.  ^lm_head\.  or  \.lora_" spellcheck="false">
+        <div class="hint">A regular expression tested against each tensor name.</div>
+        <div id="excludeErr" class="fielderr"></div>
+      </div>
+      <div class="field full">
+        <label for="meta">Metadata (<span class="mono">__metadata__</span>)</label>
+        <textarea id="meta" spellcheck="false"></textarea>
+        <div class="hint">Merged from all shards automatically. Edit as a JSON object of text values, or <button id="metaReset" type="button" class="icon">reset to merged</button></div>
+        <div id="metaErr" class="fielderr"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <details id="tensorDetails">
+      <summary><span class="step" style="margin-right:6px">5</span>Tensors <span id="tensorCount" class="badge"></span></summary>
+      <div class="tensorbar">
+        <input id="tsearch" type="text" placeholder="Filter by name, dtype or file…" spellcheck="false">
+        <select id="tstatus" style="width:auto">
+          <option value="all">All</option>
+          <option value="in">Included</option>
+          <option value="out">Left out</option>
+        </select>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Name</th><th>Dtype</th><th>Shape</th><th style="text-align:right">Size</th><th>From</th><th>Status</th></tr></thead>
+          <tbody id="tensorRows"></tbody>
+        </table>
+      </div>
+      <div id="tensorMore" class="small muted" style="margin-top:8px"></div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">6</span>Join</h2>
+    <div class="join">
+      <button id="joinBtn" type="button" class="primary" disabled>Join &amp; save…</button>
+      <div id="method" class="method"></div>
+    </div>
+    <div id="progress" class="progress">
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="ptext"><span id="pLeft"></span><span id="pRight"></span></div>
+      <div style="margin-top:10px"><button id="cancelBtn" type="button" class="danger">Cancel</button></div>
+    </div>
+    <div id="result" class="result"></div>
+  </section>
+
+  <footer>Works offline. Best in Chrome or Edge (writes straight to disk). Firefox and Safari save through a normal download.</footer>
+</div>
+
+<script id="core">
+/* ===== Core engine: pure logic, no DOM. Works on any Blob/File. ===== */
+const SafeJoin = (() => {
+  const MAX_HEADER = 100 * 1024 * 1024;   // same limit the official library enforces
+  const CHUNK = 64 * 1024 * 1024;         // bytes per disk write
+  // dtype -> [alignment bytes, bits per element]
+  const DT = {
+    BOOL:[1,8], U8:[1,8], I8:[1,8], F8_E5M2:[1,8], F8_E4M3:[1,8], F8_E4M3FN:[1,8], F8_E8M0:[1,8],
+    I16:[2,16], U16:[2,16], F16:[2,16], BF16:[2,16],
+    I32:[4,32], U32:[4,32], F32:[4,32],
+    I64:[8,64], U64:[8,64], F64:[8,64], C64:[8,64],
+    F4:[1,4], F6_E2M3:[1,6], F6_E3M2:[1,6]
+  };
+  const collator = new Intl.Collator(undefined, {numeric:true, sensitivity:'base'});
+  const byteCmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const listSome = (arr, n = 5) => arr.slice(0, n).join(', ') + (arr.length > n ? ` and ${arr.length - n} more` : '');
+
+  async function readHeader(blob, name) {
+    const r = {name, size: blob.size, errors: [], warnings: [], tensors: [], metadata: null, headerLen: 0, dataStart: 0};
+    if (blob.size < 8) { r.errors.push('File is too small to be a safetensors file.'); return r; }
+    const dv = new DataView(await blob.slice(0, 8).arrayBuffer());
+    const hl = dv.getBigUint64(0, true);
+    if (hl > BigInt(MAX_HEADER) || hl < 2n) {
+      r.errors.push('Not a valid safetensors file (the header length is invalid). It may be a different format or corrupted.');
+      return r;
+    }
+    const n = Number(hl);
+    if (8 + n > blob.size) { r.errors.push('File is truncated: it ends inside its own header. The download is probably incomplete.'); return r; }
+    let obj;
+    try {
+      const text = new TextDecoder('utf-8', {fatal: true}).decode(await blob.slice(8, 8 + n).arrayBuffer());
+      obj = JSON.parse(text);
+    } catch (e) {
+      r.errors.push('Not a valid safetensors file (header is not readable JSON).');
+      return r;
+    }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) { r.errors.push('Not a valid safetensors file (header is not a JSON object).'); return r; }
+    r.headerLen = n; r.dataStart = 8 + n;
+    const dataLen = blob.size - r.dataStart;
+    const bad = [];
+    const unknown = new Set();
+    let maxEnd = 0;
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === '__metadata__') {
+        if (v === null) continue;
+        if (typeof v !== 'object' || Array.isArray(v)) { r.warnings.push('Metadata is not an object and will be ignored.'); continue; }
+        const md = Object.create(null); let coerced = 0;
+        for (const [mk, mv] of Object.entries(v)) {
+          if (typeof mv === 'string') md[mk] = mv; else { md[mk] = JSON.stringify(mv); coerced++; }
+        }
+        if (coerced) r.warnings.push(`${coerced} metadata value(s) were not text and were converted to text.`);
+        r.metadata = md;
+        continue;
+      }
+      if (!v || typeof v !== 'object') { bad.push(`"${k}" is not a tensor entry`); continue; }
+      const {dtype, shape, data_offsets: off} = v;
+      if (typeof dtype !== 'string') { bad.push(`"${k}" has no dtype`); continue; }
+      if (!Array.isArray(shape) || !shape.every(d => Number.isInteger(d) && d >= 0)) { bad.push(`"${k}" has an invalid shape`); continue; }
+      if (!Array.isArray(off) || off.length !== 2 || !off.every(x => Number.isInteger(x) && x >= 0) || off[1] < off[0]) { bad.push(`"${k}" has invalid data offsets`); continue; }
+      const nbytes = off[1] - off[0];
+      const d = DT[dtype];
+      let align = 1;
+      if (d) {
+        align = d[0];
+        const count = shape.reduce((a, b) => a * b, 1);
+        const bits = count * d[1];
+        const expect = bits % 8 === 0 ? bits / 8 : Math.ceil(bits / 8);
+        if (nbytes !== expect) { bad.push(`"${k}" holds ${nbytes} bytes but ${dtype}${JSON.stringify(shape)} needs ${expect}`); continue; }
+      } else unknown.add(dtype);
+      if (off[1] > maxEnd) maxEnd = off[1];
+      r.tensors.push({name: k, dtype, shape, begin: off[0], end: off[1], nbytes, align});
+    }
+    if (bad.length) r.errors.push(`${bad.length} broken tensor entr${bad.length === 1 ? 'y' : 'ies'}: ${listSome(bad, 3)}.`);
+    if (maxEnd > dataLen) {
+      r.errors.push(`File is truncated: it should be at least ${(r.dataStart + maxEnd).toLocaleString()} bytes but is ${blob.size.toLocaleString()}. The download is probably incomplete — re-download this shard.`);
+    }
+    if (unknown.size) r.warnings.push(`Unrecognised dtype(s) ${[...unknown].join(', ')} — data is copied as-is, size not checked.`);
+    r.tensors.sort((a, b) => a.begin - b.begin || byteCmp(a.name, b.name));
+    let pos = 0, gaps = 0, overlaps = 0;
+    for (const t of r.tensors) {
+      if (t.nbytes === 0) continue;
+      if (t.begin > pos) gaps++;
+      if (t.begin < pos) overlaps++;
+      pos = Math.max(pos, t.end);
+    }
+    if (overlaps) r.warnings.push(`${overlaps} tensor(s) share bytes with another tensor (non-standard). Each is copied separately.`);
+    if (gaps) r.warnings.push(`${gaps} gap(s) of unused bytes between tensors — these are dropped from the output.`);
+    if (!r.errors.length && pos < dataLen) r.warnings.push(`${(dataLen - pos).toLocaleString()} unused bytes at the end of the file — these are dropped from the output.`);
+    if (!r.tensors.length && !r.errors.length) r.warnings.push('File contains no tensors.');
+    return r;
+  }
+
+  function shardInfo(name) {
+    const m = /^(.*?)[-_.](\d+)[-_]of[-_](\d+)\.safetensors$/i.exec(name);
+    if (!m) return null;
+    return {stem: m[1], idx: parseInt(m[2], 10), total: parseInt(m[3], 10), width: m[2].length, sep: name.charAt(m[1].length)};
+  }
+
+  function sortEntries(entries) {
+    entries.sort((a, b) => {
+      const sa = a.shard, sb = b.shard;
+      if (sa && sb && sa.stem === sb.stem && sa.total === sb.total) return sa.idx - sb.idx;
+      return collator.compare(a.name, b.name);
+    });
+    return entries;
+  }
+
+  function suggestName(entries) {
+    const s = entries.length && entries[0].shard;
+    return s ? `${s.stem}.safetensors` : 'merged.safetensors';
+  }
+
+  function buildHeader(tensors, metadata) {
+    const obj = Object.create(null);
+    if (metadata && Object.keys(metadata).length) obj.__metadata__ = metadata;
+    for (const t of tensors) obj[t.outName] = {dtype: t.dtype, shape: t.shape, data_offsets: [t.outBegin, t.outEnd]};
+    const json = new TextEncoder().encode(JSON.stringify(obj));
+    const pad = (8 - (json.length % 8)) % 8;      // keep the data section 8-byte aligned
+    const out = new Uint8Array(8 + json.length + pad);
+    new DataView(out.buffer).setBigUint64(0, BigInt(json.length + pad), true);
+    out.set(json, 8);
+    out.fill(0x20, 8 + json.length);
+    return out;
+  }
+
+  function analyze(entries, opts = {}, index = null) {
+    const issues = [];
+    const add = (level, msg) => issues.push({level, msg});
+    const plan = {issues, all: [], tensors: [], header: new Uint8Array(0), dataSize: 0, outputSize: 0,
+                  mergedMetadata: Object.create(null), metadata: null, canJoin: false, excluded: 0, dupNames: 0, dropped: 0};
+    if (!entries.length) return plan;
+    const dupMode = opts.dupMode || 'error';
+
+    for (const e of entries) {
+      for (const m of e.info.errors) add('error', `${e.name}: ${m}`);
+      for (const m of e.info.warnings) add('warn', `${e.name}: ${m}`);
+    }
+
+    // --- shard completeness ---
+    const groups = new Map(); const loose = [];
+    for (const e of entries) {
+      if (!e.shard) { loose.push(e); continue; }
+      const key = e.shard.stem + '\u0000' + e.shard.total;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    }
+    for (const list of groups.values()) {
+      const s0 = list[0].shard;
+      const seen = new Map();
+      for (const e of list) seen.set(e.shard.idx, (seen.get(e.shard.idx) || 0) + 1);
+      const twice = [...seen].filter(([, c]) => c > 1).map(([i]) => i);
+      if (twice.length) add('error', `Shard number ${listSome(twice)} of "${s0.stem}" was added more than once. Remove the extra copy.`);
+      const missing = [];
+      for (let i = 1; i <= s0.total; i++) if (!seen.has(i)) missing.push(i);
+      if (missing.length) {
+        const nm = i => `${s0.stem}${s0.sep}${String(i).padStart(s0.width, '0')}-of-${String(s0.total).padStart(s0.width, '0')}.safetensors`;
+        add('error', `Missing ${missing.length} of ${s0.total} shards: ${listSome(missing.map(nm), 4)}.`);
+      }
+      const extra = [...seen.keys()].filter(i => i < 1 || i > s0.total);
+      if (extra.length) add('warn', `Shard number(s) ${extra.join(', ')} are outside 1–${s0.total}.`);
+      // order check
+      const pos = list.map(e => entries.indexOf(e));
+      const inOrder = list.every((e, i) => i === 0 || (e.shard.idx > list[i - 1].shard.idx));
+      if (!inOrder) add('info', 'Shards are not in numeric order. That is fine for loading, but "Sort by shard number" gives the usual layout.');
+      void pos;
+    }
+    if (groups.size > 1 || (groups.size && loose.length)) {
+      add('warn', 'These files look like they come from more than one set. Make sure they all belong to the same model.');
+    }
+
+    // --- index cross-check ---
+    if (index && index.weightMap) {
+      const names = new Set(entries.map(e => e.name));
+      const wm = index.weightMap;
+      const refFiles = [...new Set(Object.values(wm))];
+      const missingFiles = refFiles.filter(f => !names.has(f));
+      if (missingFiles.length) add('error', `The index file lists shard(s) you haven't added: ${listSome(missingFiles, 4)}.`);
+      const where = new Map();
+      for (const e of entries) for (const t of e.info.tensors) {
+        if (!where.has(t.name)) where.set(t.name, new Set());
+        where.get(t.name).add(e.name);
+      }
+      let notFound = [], moved = 0;
+      for (const [t, f] of Object.entries(wm)) {
+        const s = where.get(t);
+        if (!s) { if (names.has(f)) notFound.push(t); }
+        else if (!s.has(f)) moved++;
+      }
+      if (notFound.length) add('error', `${notFound.length} tensor(s) listed in the index are missing from their shard: ${listSome(notFound, 3)}.`);
+      if (moved) add('warn', `${moved} tensor(s) are in a different shard than the index says.`);
+      const extra = [...where.keys()].filter(t => !(t in wm));
+      if (extra.length) add('warn', `${extra.length} tensor(s) are not listed in the index: ${listSome(extra, 3)}.`);
+      if (!missingFiles.length && !notFound.length && !moved) add('ok', `Index check passed: all ${Object.keys(wm).length.toLocaleString()} tensors from ${index.name} are present.`);
+    }
+
+    // --- collect tensors ---
+    let rx = null;
+    if (opts.exclude) {
+      try { rx = new RegExp(opts.exclude); }
+      catch (e) { add('error', `The "leave out" pattern is not a valid regular expression: ${e.message}`); }
+    }
+    const byName = new Map();
+    entries.forEach((e, fi) => {
+      if (e.info.errors.length) return;
+      for (const t of e.info.tensors) {
+        const item = Object.assign({}, t, {file: e, fileIdx: fi, status: 'ok', outName: t.name});
+        plan.all.push(item);
+        if (rx && rx.test(t.name)) { item.status = 'excluded'; plan.excluded++; continue; }
+        if (!byName.has(t.name)) byName.set(t.name, []);
+        byName.get(t.name).push(item);
+      }
+    });
+
+    // --- duplicates ---
+    const used = new Set(byName.keys());
+    const dupExamples = [];
+    let identical = 0;
+    for (const [name, list] of byName) {
+      if (list.length < 2) continue;
+      plan.dupNames++;
+      if (dupExamples.length < 3) dupExamples.push(name);
+      if (list.every(x => x.dtype === list[0].dtype && JSON.stringify(x.shape) === JSON.stringify(list[0].shape))) identical++;
+      if (dupMode === 'first') list.slice(1).forEach(x => { x.status = 'dropped'; plan.dropped++; });
+      else if (dupMode === 'last') list.slice(0, -1).forEach(x => { x.status = 'dropped'; plan.dropped++; });
+      else if (dupMode === 'rename') list.slice(1).forEach(x => {
+        let n = 2, nn;
+        do { nn = `${name}__${n++}`; } while (used.has(nn));
+        used.add(nn); x.outName = nn; x.status = 'renamed';
+      });
+      else list.forEach(x => { x.status = 'conflict'; });
+    }
+    if (plan.dupNames) {
+      const same = identical === plan.dupNames ? ' (all with matching dtype and shape — likely the same tensor saved twice)' : '';
+      const msg = `${plan.dupNames.toLocaleString()} tensor name(s) appear in more than one file${same}, e.g. ${dupExamples.map(s => `"${s}"`).join(', ')}.`;
+      if (dupMode === 'error') add('error', msg + ' Choose how to handle duplicates in Options.');
+      else add('info', msg + (dupMode === 'rename' ? ' Extras are renamed.' : ` Keeping the ${dupMode} copy.`));
+    }
+    if (plan.excluded) add('info', `${plan.excluded.toLocaleString()} tensor(s) left out by your pattern.`);
+
+    // --- order + offsets ---
+    const sel = plan.all.filter(x => x.status === 'ok' || x.status === 'renamed');
+    if (opts.order !== 'source') sel.sort((a, b) => (b.align - a.align) || byteCmp(a.outName, b.outName));
+    let pos = 0, misaligned = 0;
+    for (const t of sel) {
+      if (pos % t.align) misaligned++;
+      t.outBegin = pos; pos += t.nbytes; t.outEnd = pos;
+    }
+    if (misaligned) add('warn', `${misaligned} tensor(s) would start on an unaligned byte boundary. Most loaders cope, but "Alignment-safe" order avoids this.`);
+    plan.tensors = sel;
+    plan.dataSize = pos;
+
+    // --- metadata ---
+    const conflicts = new Set();
+    for (const e of entries) {
+      const md = e.info.metadata; if (!md) continue;
+      for (const [k, v] of Object.entries(md)) {
+        if (k in plan.mergedMetadata) { if (plan.mergedMetadata[k] !== v) conflicts.add(k); }
+        else plan.mergedMetadata[k] = v;
+      }
+    }
+    if (conflicts.size) add('warn', `Metadata key(s) ${listSome([...conflicts].map(k => `"${k}"`), 4)} differ between shards — the first shard's value is used. You can edit it in Options.`);
+    plan.metadata = opts.metadata !== undefined ? opts.metadata : plan.mergedMetadata;
+
+    plan.header = buildHeader(sel, plan.metadata);
+    if (plan.header.length - 8 > MAX_HEADER) add('error', 'The combined header would exceed the 100 MB safetensors limit. Too many tensors for one file.');
+    plan.outputSize = plan.header.length + plan.dataSize;
+    if (plan.outputSize > 4294967295) add('info', 'The output is over 4 GB, so it can\'t be saved to a FAT32-formatted drive (common on USB sticks). NTFS, exFAT, APFS and ext4 are fine.');
+    if (!sel.length && !issues.some(i => i.level === 'error')) add('error', 'No tensors are selected for the output.');
+    plan.canJoin = sel.length > 0 && !issues.some(i => i.level === 'error');
+    return plan;
+  }
+
+  async function write(plan, sink, {onProgress, signal, chunk = CHUNK} = {}) {
+    const total = plan.outputSize;
+    let done = 0;
+    const check = () => { if (signal && signal.aborted) throw new DOMException('Cancelled', 'AbortError'); };
+    check();
+    await sink.write(plan.header);
+    done += plan.header.length;
+    if (onProgress) onProgress(done, total);
+    let parts = [], pb = 0;
+    const flush = async () => {
+      if (!parts.length) return;
+      check();
+      const b = new Blob(parts); const n = pb;
+      parts = []; pb = 0;
+      await sink.write(b);
+      done += n;
+      if (onProgress) onProgress(done, total);
+    };
+    for (const t of plan.tensors) {
+      const base = t.file.info.dataStart;
+      let a = base + t.begin; const e = base + t.end;
+      while (a < e) {
+        const take = Math.min(e - a, chunk - pb);
+        parts.push(t.file.blob.slice(a, a + take));
+        pb += take; a += take;
+        if (pb >= chunk) await flush();
+      }
+    }
+    await flush();
+    if (done !== total) throw new Error(`Wrote ${done} bytes but expected ${total}.`);
+  }
+
+  function toBlob(plan) {
+    const parts = [plan.header];
+    for (const t of plan.tensors) {
+      const base = t.file.info.dataStart;
+      parts.push(t.file.blob.slice(base + t.begin, base + t.end));
+    }
+    return new Blob(parts, {type: 'application/octet-stream'});
+  }
+
+  async function verify(out, plan, {sampleCount = 12, span = 65536} = {}) {
+    const res = {ok: true, checks: []};
+    const pass = m => res.checks.push({ok: true, msg: m});
+    const fail = m => { res.ok = false; res.checks.push({ok: false, msg: m}); };
+    if (out.size !== plan.outputSize) fail(`File size is ${out.size.toLocaleString()} bytes, expected ${plan.outputSize.toLocaleString()}.`);
+    else pass(`File size is correct (${out.size.toLocaleString()} bytes).`);
+    const info = await readHeader(out, 'output');
+    if (info.errors.length) { fail('Output header problem: ' + info.errors.join(' ')); return res; }
+    if (info.tensors.length !== plan.tensors.length) fail(`Output lists ${info.tensors.length} tensors, expected ${plan.tensors.length}.`);
+    else if (info.warnings.some(w => /gap|share|unused/.test(w))) fail('Output data layout is not contiguous.');
+    else pass(`Header is valid and lists all ${info.tensors.length.toLocaleString()} tensors.`);
+    // sample byte comparison
+    const ts = plan.tensors.filter(t => t.nbytes > 0);
+    const pick = new Set();
+    if (ts.length) {
+      pick.add(0); pick.add(ts.length - 1);
+      let big = 0; ts.forEach((t, i) => { if (t.nbytes > ts[big].nbytes) big = i; }); pick.add(big);
+      let guard = 0;
+      while (pick.size < Math.min(sampleCount, ts.length) && guard++ < 1000) pick.add(Math.floor(Math.random() * ts.length));
+    }
+    let bad = 0, checked = 0;
+    for (const i of pick) {
+      const t = ts[i];
+      const regions = [[0, Math.min(span, t.nbytes)], [Math.max(0, t.nbytes - span), t.nbytes]];
+      for (const [a, b] of regions) {
+        const src = new Uint8Array(await t.file.blob.slice(t.file.info.dataStart + t.begin + a, t.file.info.dataStart + t.begin + b).arrayBuffer());
+        const dst = new Uint8Array(await out.slice(info.dataStart + t.outBegin + a, info.dataStart + t.outBegin + b).arrayBuffer());
+        let same = src.length === dst.length;
+        for (let k = 0; same && k < src.length; k++) if (src[k] !== dst[k]) same = false;
+        if (!same) bad++;
+      }
+      checked++;
+    }
+    if (checked) { if (bad) fail(`${bad} sampled region(s) don't match the source data.`); else pass(`Spot-checked ${checked} tensors byte-for-byte against the source shards.`); }
+    return res;
+  }
+
+  return {readHeader, shardInfo, sortEntries, suggestName, analyze, buildHeader, write, toBlob, verify, DT};
+})();
+</script>
+
+<script>
+/* ===== UI ===== */
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtBytes = n => {
+    if (n < 1024) return n + ' B';
+    const u = ['KB', 'MB', 'GB', 'TB']; let i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+    return n.toFixed(n < 10 ? 2 : n < 100 ? 1 : 0) + ' ' + u[i];
+  };
+  const fmtTime = s => {
+    if (!isFinite(s)) return '…';
+    if (s < 60) return Math.ceil(s) + ' s';
+    const m = Math.floor(s / 60), r = Math.round(s % 60);
+    return m < 60 ? `${m} min ${r} s` : `${Math.floor(m / 60)} h ${m % 60} min`;
+  };
+  const canStream = typeof window.showSaveFilePicker === 'function';
+
+  const state = {entries: [], index: null, nextId: 1, plan: null, busy: false, ctrl: null,
+                 metaEdited: false, nameEdited: false, lastUrl: null};
+
+  /* ---------- adding files ---------- */
+  function notice(msgs) {
+    const box = $('#notices');
+    box.innerHTML = msgs.map(m => `<div class="notice ${m.warn ? 'warn' : ''}">${esc(m.text)}</div>`).join('');
+  }
+
+  async function addFiles(list) {
+    if (state.busy) return;
+    const msgs = []; let added = 0, ignored = 0;
+    for (const f of list) {
+      const lower = f.name.toLowerCase();
+      if (lower.endsWith('.json')) {
+        if (!/index\.json$/.test(lower)) { ignored++; continue; }
+        try {
+          const j = JSON.parse(await f.text());
+          if (j && j.weight_map && typeof j.weight_map === 'object') {
+            state.index = {name: f.name, weightMap: j.weight_map};
+            msgs.push({text: `Using ${f.name} to cross-check tensors.`});
+          } else { msgs.push({text: `${f.name} isn't a safetensors index file — ignored.`, warn: true}); }
+        } catch { msgs.push({text: `${f.name} couldn't be read as JSON — ignored.`, warn: true}); }
+        continue;
+      }
+      if (/\.(bin|pt|pth|ckpt|pkl)$/.test(lower)) { msgs.push({text: `${f.name} is a PyTorch pickle file, not safetensors, so it can't be joined here. Convert it to safetensors first.`, warn: true}); continue; }
+      if (lower.endsWith('.gguf')) { msgs.push({text: `${f.name} is a GGUF file (llama.cpp format), not safetensors.`, warn: true}); continue; }
+      if (!lower.endsWith('.safetensors')) { ignored++; continue; }
+      if (state.entries.some(e => e.name === f.name && e.size === f.size && e.blob.lastModified === f.lastModified)) {
+        msgs.push({text: `${f.name} was already added.`, warn: true}); continue;
+      }
+      let info;
+      try { info = await SafeJoin.readHeader(f, f.name); }
+      catch (e) { info = {name: f.name, size: f.size, errors: ['Could not read this file: ' + e.message], warnings: [], tensors: [], metadata: null, dataStart: 0}; }
+      state.entries.push({id: state.nextId++, name: f.name, blob: f, size: f.size, info, shard: SafeJoin.shardInfo(f.name)});
+      added++;
+    }
+    if (ignored) msgs.push({text: `Ignored ${ignored} file(s) that aren't .safetensors (config, tokenizer, etc.).`});
+    if (added) SafeJoin.sortEntries(state.entries);
+    notice(msgs);
+    recompute();
+  }
+
+  async function filesFromDrop(dt) {
+    const items = [...(dt.items || [])].filter(i => i.kind === 'file');
+    const roots = items.map(i => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+    if (!roots.length) return [...dt.files];
+    const out = [];
+    const walk = async en => {
+      if (en.isFile) out.push(await new Promise((res, rej) => en.file(res, rej)));
+      else if (en.isDirectory) {
+        const reader = en.createReader(); let batch;
+        do {
+          batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+          for (const c of batch) await walk(c);
+        } while (batch.length);
+      }
+    };
+    for (const r of roots) await walk(r);
+    return out;
+  }
+
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', async e => { addFiles(await filesFromDrop(e.dataTransfer)); });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+  $('#pickFiles').onclick = () => $('#fileInput').click();
+  $('#pickFolder').onclick = () => $('#folderInput').click();
+  $('#fileInput').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+  $('#folderInput').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+
+  /* ---------- file list ---------- */
+  $('#sortBtn').onclick = () => { SafeJoin.sortEntries(state.entries); recompute(); };
+  $('#clearBtn').onclick = () => { state.entries = []; state.index = null; state.metaEdited = false; state.nameEdited = false; notice([]); $('#result').innerHTML = ''; recompute(); };
+  $('#fileRows').addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]'); if (!b || state.busy) return;
+    const i = state.entries.findIndex(x => x.id === +b.dataset.id); if (i < 0) return;
+    const act = b.dataset.act;
+    if (act === 'up' && i > 0) [state.entries[i - 1], state.entries[i]] = [state.entries[i], state.entries[i - 1]];
+    if (act === 'down' && i < state.entries.length - 1) [state.entries[i + 1], state.entries[i]] = [state.entries[i], state.entries[i + 1]];
+    if (act === 'rm') state.entries.splice(i, 1);
+    recompute();
+  });
+
+  function renderFiles() {
+    const rows = state.entries.map((e, i) => {
+      const s = e.shard ? `<span class="badge">${e.shard.idx} / ${e.shard.total}</span>` : '<span class="muted small">—</span>';
+      const st = e.info.errors.length ? `<span class="badge err" title="${esc(e.info.errors.join('\n'))}">Problem</span>`
+               : e.info.warnings.length ? `<span class="badge warn" title="${esc(e.info.warnings.join('\n'))}">Note</span>`
+               : '<span class="badge ok">OK</span>';
+      return `<tr><td class="num muted">${i + 1}</td><td class="name mono">${esc(e.name)}</td><td>${s}</td>
+        <td class="num">${fmtBytes(e.size)}</td><td class="num">${e.info.tensors.length.toLocaleString()}</td><td>${st}</td>
+        <td class="acts"><button class="icon" data-act="up" data-id="${e.id}" title="Move up" aria-label="Move up">↑</button>
+        <button class="icon" data-act="down" data-id="${e.id}" title="Move down" aria-label="Move down">↓</button>
+        <button class="icon danger" data-act="rm" data-id="${e.id}" title="Remove" aria-label="Remove">✕</button></td></tr>`;
+    }).join('');
+    $('#fileRows').innerHTML = rows || '<tr><td colspan="7" class="empty">No files yet.</td></tr>';
+    $('#fileCount').textContent = state.entries.length ? `${state.entries.length}` : '';
+    $('#indexInfo').innerHTML = state.index
+      ? `Index: <span class="mono">${esc(state.index.name)}</span> <button class="icon" id="dropIndex" type="button">remove</button>` : '';
+    const di = $('#dropIndex'); if (di) di.onclick = () => { state.index = null; recompute(); };
+  }
+
+  /* ---------- options ---------- */
+  function metaFromEditor() {
+    if (!state.metaEdited) return {value: undefined};
+    const txt = $('#meta').value.trim();
+    if (!txt) return {value: Object.create(null)};
+    try {
+      const o = JSON.parse(txt);
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return {error: 'Metadata must be a JSON object, e.g. {"format": "pt"}.'};
+      const out = Object.create(null);
+      for (const [k, v] of Object.entries(o)) out[k] = typeof v === 'string' ? v : JSON.stringify(v);
+      return {value: out};
+    } catch (e) { return {error: 'Metadata is not valid JSON: ' + e.message}; }
+  }
+  let t;
+  const debounced = () => { clearTimeout(t); t = setTimeout(recompute, 200); };
+  $('#dupMode').onchange = recompute;
+  $('#order').onchange = recompute;
+  $('#exclude').oninput = debounced;
+  $('#meta').oninput = () => { state.metaEdited = true; debounced(); };
+  $('#metaReset').onclick = () => { state.metaEdited = false; recompute(); };
+  $('#outName').oninput = () => { state.nameEdited = true; };
+  $('#tsearch').oninput = () => renderTensors();
+  $('#tstatus').onchange = () => renderTensors();
+
+  /* ---------- analysis + render ---------- */
+  function recompute() {
+    const meta = metaFromEditor();
+    const plan = SafeJoin.analyze(state.entries, {
+      dupMode: $('#dupMode').value, order: $('#order').value,
+      exclude: $('#exclude').value.trim(), metadata: meta.value
+    }, state.index);
+    $('#metaErr').textContent = meta.error || '';
+    if (meta.error) { plan.issues.push({level: 'error', msg: meta.error}); plan.canJoin = false; }
+    const rxErr = plan.issues.find(i => i.msg.startsWith('The "leave out" pattern'));
+    $('#excludeErr').textContent = rxErr ? 'Invalid pattern' : '';
+    state.plan = plan;
+    if (!state.metaEdited) {
+      const m = plan.mergedMetadata;
+      $('#meta').value = Object.keys(m).length ? JSON.stringify(m, null, 2) : '';
+    }
+    if (!state.nameEdited) $('#outName').value = SafeJoin.suggestName(state.entries);
+    renderFiles(); renderIssues(); renderTensors(); renderJoin();
+  }
+
+  function renderIssues() {
+    const p = state.plan;
+    const order = {error: 0, warn: 1, info: 2, ok: 3};
+    const icon = {error: '✕', warn: '!', info: 'i', ok: '✓'};
+    const list = [...p.issues].sort((a, b) => order[a.level] - order[b.level]);
+    if (!state.entries.length) $('#issues').innerHTML = '<li class="info"><span class="ic">i</span><span>Add some shards to start.</span></li>';
+    else {
+      if (!p.issues.some(i => i.level === 'error' || i.level === 'warn')) list.unshift({level: 'ok', msg: 'All checks passed — ready to join.'});
+      $('#issues').innerHTML = list.map(i => `<li class="${i.level}"><span class="ic">${icon[i.level]}</span><span>${esc(i.msg)}</span></li>`).join('');
+    }
+    $('#stats').innerHTML = state.entries.length ? [
+      ['Input files', state.entries.length.toLocaleString()],
+      ['Input size', fmtBytes(state.entries.reduce((a, e) => a + e.size, 0))],
+      ['Output tensors', p.tensors.length.toLocaleString()],
+      ['Output size', fmtBytes(p.outputSize)],
+    ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('') : '';
+  }
+
+  const STATUS = {
+    ok: ['ok', 'Included'], renamed: ['info', 'Renamed'], excluded: ['', 'Left out'],
+    dropped: ['', 'Duplicate dropped'], conflict: ['err', 'Duplicate']
+  };
+  function renderTensors() {
+    const p = state.plan; if (!p) return;
+    const q = $('#tsearch').value.trim().toLowerCase();
+    const mode = $('#tstatus').value;
+    const rows = [];
+    let matched = 0;
+    for (const t of p.all) {
+      const inc = t.status === 'ok' || t.status === 'renamed';
+      if (mode === 'in' && !inc) continue;
+      if (mode === 'out' && inc) continue;
+      if (q && !(t.name.toLowerCase().includes(q) || t.dtype.toLowerCase() === q || t.file.name.toLowerCase().includes(q))) continue;
+      matched++;
+      if (rows.length >= 400) continue;
+      const [cls, label] = STATUS[t.status];
+      const nm = t.status === 'renamed' ? `${esc(t.name)} <span class="muted">→ ${esc(t.outName)}</span>` : esc(t.name);
+      rows.push(`<tr><td class="name mono">${nm}</td><td class="mono">${esc(t.dtype)}</td><td class="mono">[${t.shape.join(', ')}]</td>
+        <td class="num">${fmtBytes(t.nbytes)}</td><td class="mono small muted">#${t.fileIdx + 1}</td><td><span class="badge ${cls}">${label}</span></td></tr>`);
+    }
+    $('#tensorRows').innerHTML = rows.join('') || '<tr><td colspan="6" class="empty">No tensors to show.</td></tr>';
+    $('#tensorMore').textContent = matched > 400 ? `Showing 400 of ${matched.toLocaleString()} — refine the filter to see others.` : '';
+    $('#tensorCount').textContent = p.all.length ? p.all.length.toLocaleString() : '';
+  }
+
+  function renderJoin() {
+    const p = state.plan;
+    $('#joinBtn').disabled = state.busy || !p || !p.canJoin;
+    $('#method').innerHTML = canStream
+      ? `Writes straight to disk in 64 MB chunks, so memory use stays low. You need about <b>${fmtBytes(p ? p.outputSize : 0)}</b> of free space where you save it.`
+      : `Your browser can't write straight to disk, so the file is saved through a normal download. It's assembled from your files without copying them into memory, but Chrome or Edge is more reliable for very large models.`;
+  }
+
+  /* ---------- joining ---------- */
+  function setBusy(b) {
+    state.busy = b;
+    document.querySelectorAll('#pickFiles,#pickFolder,#sortBtn,#clearBtn,#dupMode,#order,#exclude,#meta,#outName,#fileRows button')
+      .forEach(el => { el.disabled = b; });
+    $('#progress').classList.toggle('show', b);
+    renderJoin();
+  }
+  window.addEventListener('beforeunload', e => { if (state.busy) { e.preventDefault(); e.returnValue = ''; } });
+
+  function showProgress(done, total, t0) {
+    const pct = total ? done / total * 100 : 0;
+    const secs = (performance.now() - t0) / 1000;
+    const speed = secs > 0.3 ? done / secs : 0;
+    $('#barFill').style.width = pct.toFixed(1) + '%';
+    $('#pLeft').textContent = `${fmtBytes(done)} of ${fmtBytes(total)} (${pct.toFixed(1)}%)`;
+    $('#pRight').textContent = speed ? `${fmtBytes(speed)}/s · about ${fmtTime((total - done) / speed)} left` : 'Starting…';
+  }
+
+  function showResult(level, title, checks = [], extra = '') {
+    const items = checks.map(c => `<li class="${c.ok ? 'ok' : 'error'}"><span class="ic">${c.ok ? '✓' : '✕'}</span><span>${esc(c.msg)}</span></li>`).join('');
+    $('#result').innerHTML = `<ul class="issues"><li class="${level}"><span class="ic">${level === 'ok' ? '✓' : level === 'error' ? '✕' : 'i'}</span><span>${title}</span></li>${items}</ul>${extra}`;
+  }
+
+  function friendlyError(e) {
+    if (!e) return 'Unknown error.';
+    if (e.name === 'NotReadableError' || e.name === 'NotFoundError') return 'A source file could not be read. Was it moved, deleted, renamed or changed while joining? Add it again and retry.';
+    if (e.name === 'QuotaExceededError' || /space|quota|disk/i.test(e.message || '')) return 'Not enough free disk space at the save location. Free up space or pick another drive.';
+    if (e.name === 'NotAllowedError') return 'The browser did not allow writing to that location. Try another folder (system folders are often blocked).';
+    return esc(e.message || String(e));
+  }
+
+  $('#cancelBtn').onclick = () => { if (state.ctrl) state.ctrl.abort(); };
+
+  $('#joinBtn').onclick = async () => {
+    const plan = state.plan;
+    if (!plan || !plan.canJoin || state.busy) return;
+    let name = $('#outName').value.trim() || 'merged.safetensors';
+    name = name.replace(/[\\/:*?"<>|]/g, '_');
+    if (!/\.safetensors$/i.test(name)) name += '.safetensors';
+    $('#result').innerHTML = '';
+
+    if (canStream) {
+      let handle;
+      try {
+        handle = await window.showSaveFilePicker({suggestedName: name, types: [{description: 'Safetensors model', accept: {'application/octet-stream': ['.safetensors']}}]});
+      } catch (e) {
+        if (e.name === 'AbortError') return;          // user closed the dialog
+        return downloadFallback(plan, name, 'Direct saving was blocked here, so the file is being saved as a regular download instead.');
+      }
+      if (state.entries.some(en => en.name === handle.name)) {
+        showResult('error', `“${esc(handle.name)}” has the same name as one of your input shards. Saving over an input would destroy it — please choose a different name.`);
+        return;
+      }
+      await streamToDisk(plan, handle);
+    } else {
+      downloadFallback(plan, name);
+    }
+  };
+
+  async function streamToDisk(plan, handle) {
+    setBusy(true);
+    const ctrl = new AbortController(); state.ctrl = ctrl;
+    const t0 = performance.now();
+    showProgress(0, plan.outputSize, t0);
+    let w;
+    try {
+      w = await handle.createWritable();
+      await SafeJoin.write(plan, {write: d => w.write(d)}, {signal: ctrl.signal, onProgress: (d, tot) => showProgress(d, tot, t0)});
+      $('#pRight').textContent = 'Finishing…';
+      await w.close(); w = null;
+      $('#pRight').textContent = 'Verifying…';
+      const secs = (performance.now() - t0) / 1000;
+      const res = await SafeJoin.verify(await handle.getFile(), plan);
+      showResult(res.ok ? 'ok' : 'error',
+        res.ok ? `Saved <span class="mono">${esc(handle.name)}</span> — ${fmtBytes(plan.outputSize)}, ${plan.tensors.length.toLocaleString()} tensors, in ${fmtTime(secs)}.`
+               : `The file was written, but verification found a problem. Don't use it — try joining again.`,
+        res.checks,
+        res.ok ? '<p class="small muted" style="margin:10px 0 0">You no longer need the shards or <span class="mono">model.safetensors.index.json</span> for this model. If a tool still looks for the index file, move or delete it from the model folder so the single file is used.</p>' : '');
+    } catch (e) {
+      if (w) { try { await w.abort(); } catch {} }
+      if (e.name === 'AbortError') showResult('info', 'Cancelled. Nothing was saved.');
+      else showResult('error', 'Joining failed: ' + friendlyError(e));
+    } finally {
+      state.ctrl = null;
+      setBusy(false);
+    }
+  }
+
+  async function downloadFallback(plan, name, why = '') {
+    const blob = SafeJoin.toBlob(plan);
+    if (state.lastUrl) URL.revokeObjectURL(state.lastUrl);
+    const url = URL.createObjectURL(blob); state.lastUrl = url;
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    showResult('info', `${why ? esc(why) + ' ' : ''}Your browser is saving <span class="mono">${esc(name)}</span> (${fmtBytes(plan.outputSize)}). Keep this tab open until the download finishes.`);
+    try {
+      const res = await SafeJoin.verify(blob, plan);
+      showResult(res.ok ? 'ok' : 'error',
+        `${why ? esc(why) + ' ' : ''}Your browser is saving <span class="mono">${esc(name)}</span> (${fmtBytes(plan.outputSize)}). Keep this tab open until the download finishes.`,
+        res.checks);
+    } catch {}
+  }
+
+  recompute();
+})();
+</script>
+</body>
+</html>
